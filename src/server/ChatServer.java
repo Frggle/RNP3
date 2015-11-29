@@ -17,8 +17,10 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
 /**
- * ChatServer.java Version: 1.0 Autor: Marc Kaepke & Anna Steinhauer Zweck: Ein multi-thread/client Chat Raum Server
- * (TCP Server-Socket).
+ * ChatServer.java 
+ * Version: 2.0 
+ * Autor: Marc Kaepke & Anna Steinhauer 
+ * Zweck: Ein multi-thread/client Chat Raum Server (TCP Server-Socket).
  */
 public class ChatServer {
 	
@@ -103,6 +105,7 @@ public class ChatServer {
 		private Socket socket;	// TCP-Standard-Socket
 		private BufferedReader in;	// Eingangsstream vom Client
 		private PrintWriter out;	// Ausgangsstream zum Client
+		private final String PLACEHOLDER = "        ";
 		
 		/**
 		 * Konstruktor
@@ -122,22 +125,22 @@ public class ChatServer {
 				out = new PrintWriter(socket.getOutputStream(), true);
 				
 				/**
-				 * Server fordert zur Eingabe des Nicknames auf. Der Nickname darf im Chat-Raum noch nicht vergessen
+				 * Server fordert zur Eingabe des Nicknames auf. Der Nickname darf im Chat-Raum noch nicht vergeben
 				 * sein.
 				 */
 				while(true) {
-					out.println("SUBMITNAME");
+					out.println("/NME");
 					
 					name = in.readLine();
 					if(name == null) {
 						return;
 					}
-					writeServerLog("        ", name + " SUBMITNAME");
+					if(!name.startsWith("/USR")) {
+						return;
+					}
+					name = extractMessage(name);
+					writeServerLog(PLACEHOLDER, name + " /NME");
 					
-					/**
-					 * Damit Threads sich nicht in die Quere kommen, ist die Abfrage ob der Nickname vergeben ist ein
-					 * kritischer Abschnitt.
-					 */
 					synchronized(users) {
 						if(!users.contains(name)) {
 							users.add(name);
@@ -147,16 +150,19 @@ public class ChatServer {
 				}
 				
 				// Der neue Benutzer wird "akzeptiert" -> Server schickt Bestaetigung an Client
-				out.println("NAMEACCEPTED");
-				writeServerLog("        ", name + " NAMEACCEPTED");
+				out.println("/NOK");
+				writeServerLog(PLACEHOLDER, name + " /NOK");
 				
 				// Informiert die Chat-Mitgliedern, dass ein neuer Benutzer beigetreten ist
 				for(PrintWriter writer : writers) {
-					writer.println("MESSAGE        " + name + " joined");
+					writer.println("/MSG" + PLACEHOLDER + name + " joined");
+					writer.println("/USR" + name);
 				}
-				writeServerLog("        ", name + " joined");
+				writeServerLog(PLACEHOLDER, name + " joined");
 				
-				writers.add(out); // Fuegt den neuen WriterStream der Liste aller Mitglieder-Streams bei
+				synchronized(writers) {
+					writers.add(out); // Fuegt den neuen WriterStream der Liste aller Mitglieder-Streams bei	
+				}
 				
 				Calendar cal = Calendar.getInstance();
 				SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
@@ -170,34 +176,31 @@ public class ChatServer {
 					if(input == null) {
 						return;
 						// Wenn der Client den Chat verlassen will
-					} else if(input.toUpperCase().startsWith("/QUIT")) {
-						out.println("QUIT");
-						writeServerLog("        ", name + " disconnected");
-						for(PrintWriter writer : writers) {
-							writer.println("MESSAGE " + name + " (" + sdf.format(cal.getTime()) + ") disconnected");
-						}
-						// Wenn der Client wissen will, welche Mitglieder im Chat-Raum sind
-					} else if(input.toUpperCase().startsWith("/USER")) {
-						writeServerLog(name, input);
-						out.println("MESSAGE        list of users:");
-						for(String user : users) {
-							if(!user.equals(name)) {
-								out.println("MESSAGE        " + user);
-							}
-						}
-						// Wenn der Client Hilfe anfordert, welche Befehle ihm zur Verfuegung stehen
-					} else if(input.toUpperCase().startsWith("/HELP")) {
-						writeServerLog(name, input);
-						out.println("MESSAGE        /user => list of connected users.");
-						out.println("MESSAGE        /quit => disconnect from Chat-Server.");
-						writeServerLog("", "        /user => list of connected users.");
-						writeServerLog("", "        /quit => disconnect from Chat-Server.");
-						// Wenn eine Nachricht an alle gehen soll
-					} else {
+					} else if(input.equals("/QIT" + name)) {
+						out.println("/QIT");
+						writeServerLog(PLACEHOLDER, name + " disconnected");
 						synchronized(writers) {
+							for(PrintWriter writer : writers) {
+								writer.println("/MSG" + name + " (" + sdf.format(cal.getTime()) + ") disconnected");
+								writer.println("/USR" + name);
+							}	
+						}
+					} else if(input.equals("/USR")) {
+						synchronized(users) {
+							String res = "";
+							for(String user : users) {
+								res += (user + "\n");
+							}
+							out.println("/USR" + res);
+						}
+					}
+					// Wenn eine Nachricht an alle gehen soll
+					else {
+						synchronized(writers) {
+							input = extractMessage(input);
 							writeServerLog(name, input);
 							for(PrintWriter writer : writers) {
-								writer.println("MESSAGE " + name + " (" + sdf.format(cal.getTime()) + ") : " + input);
+								writer.println("/MSG" + name + " (" + sdf.format(cal.getTime()) + ") : " + input);
 							}
 						}
 					}
@@ -217,6 +220,15 @@ public class ChatServer {
 				} catch(IOException e) {
 				}
 			}
+		}
+		
+		/**
+		 * 
+		 * @param message
+		 * @return
+		 */
+		private String extractMessage(String message) {
+			return message.substring(4);
 		}
 		
 		/**

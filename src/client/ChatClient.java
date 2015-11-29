@@ -13,6 +13,8 @@ import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
@@ -20,33 +22,35 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
 /**
- * ChatClient.java
- * 
- * Version 1.0
- * Autor: Marc Kaepke & Anna Steinhauer
- * Zweck: Ein TCP-Client verbindet sich, mit anderen Clients, mit einem Chat-Server.
- * 		  Der Client folgt dabei dem Chat-Protokoll (SUBMITNAME, NAMEACCEPTED, MESSAGE und QUIT). 	
- * 		  Der Client verfuegt ueber eine grafische Swing-Oberflaeche und zeigt den Chat-Verlauf an.
+ * ChatClient.java Version 2.0 Autor: Marc Kaepke & Anna Steinhauer Zweck: Ein TCP-Client verbindet sich, mit anderen
+ * Clients, mit einem Chat-Server. Der Client folgt dabei dem Chat-Protokoll (SUBMITNAME, NAMEACCEPTED, MESSAGE und
+ * QUIT). Der Client verfuegt ueber eine grafische Swing-Oberflaeche und zeigt den Chat-Verlauf an.
  */
 public class ChatClient {
 	
-	private BufferedReader in;	// Eingabestream vom Server
-	private PrintWriter out;	// Ausgabestream zum Server
+	BufferedReader in;	// Eingabestream vom Server
+	PrintWriter out;	// Ausgabestream zum Server
 	
-	private JFrame frame = new JFrame("HAW - RN");	// Chat-Fenster
-	private JTextField textField = new JTextField(40);	// Eingabezeile 
-	private JTextArea messageArea = new JTextArea(8, 40);	// Ausgabebereich von allen Chat-Mitgliedern
-	private JScrollPane scrollPane = new JScrollPane(messageArea);
+	JFrame frame = new JFrame("HAW - RN");	// Chat-Fenster
+	JTextField textField = new JTextField(40);	// Eingabezeile
+	JTextArea messageArea = new JTextArea(8, 40);	// Ausgabebereich von allen Chat-Mitgliedern
+	JScrollPane scrollPane = new JScrollPane(messageArea);
 	
-	private String nickname = "anonym";	// Initial Nickname
+	String user = "anonym";	// Initial Nickname
 	
-	private String hostname;	// Hostname
-	private final int PORT = 56789;	// Portnummer, als Konstante
+	String hostname;	// Hostname
+	final int PORT = 56789;	// Portnummer, als Konstante
+	
+	ClientThreadIncoming clientThreadIncoming = null;
+	Socket socket = null;
+	
+	List<String> userList;
 	
 	/**
 	 * Konstruktor
 	 */
 	public ChatClient() {
+		userList = new ArrayList<String>();
 		builtGUI();
 	}
 	
@@ -61,40 +65,141 @@ public class ChatClient {
 		frame.getContentPane().add(scrollPane, "Center");
 		frame.pack();
 		
-		// Listener auf das Beenden/ Schliessen des Fensters 
+		// Listener auf das Beenden/ Schliessen des Fensters
 		frame.addWindowListener(new WindowAdapter() {
 			/**
-			 * Sobald das Fenster geschlossen wird, ohne dass der Benutzer sich abgemeldet hat,
-			 * wird der Chat-Server ueber den Befehl "/quit" informiert, dass der Benutzer den Chat verlassen hat.
+			 * Sobald das Fenster geschlossen wird, ohne dass der Benutzer sich abgemeldet hat, wird der Chat-Server
+			 * ueber den Befehl "/quit" informiert, dass der Benutzer den Chat verlassen hat.
 			 */
 			@Override
 			public void windowClosing(WindowEvent e) {
-				out.println("/QUIT");
+				out.println("/QIT" + user);
+				logout();
+				System.exit(0);
 			}
+			
 			@Override
 			public void windowClosed(WindowEvent e) {
-				out.println("/QUIT");
+				out.println("/QIT" + user);
+				logout();
+				System.exit(0);
 			}
 		});
-				
+		
 		// Listener auf der Eingabezeile
 		textField.addActionListener(new ActionListener() {
 			/**
-			 * Sobald die ENTER-Taste gedrueckt wurde, wird der Inhalt an den Chat-Server geschickt.
-			 * Anschließend wird die Eingabezeile entleert/ geloescht
+			 * Sobald die ENTER-Taste gedrueckt wurde, wird der Inhalt an den Chat-Server geschickt. Anschließend wird
+			 * die Eingabezeile entleert/ geloescht
 			 */
-			
-			// TODO neuen Thread starten
 			public void actionPerformed(ActionEvent e) {
-				out.println(textField.getText());
-				textField.setText("");
+				Runnable run = new Runnable() {
+					@Override
+					public void run() {
+						String message = textField.getText();
+						if(message.toUpperCase().equals("USERS")) {
+							out.println("/USR");
+							textField.setText("");
+						} else if(message.toUpperCase().equals("QUIT")) {
+							out.println("/QIT" + user);
+							textField.setText("");
+						} else {
+							out.println("/MSG" + message);
+							textField.setText("");
+						}
+					}
+				};
+				run.run();
 			}
 		});
 	}
 	
 	/**
-	 * Erzeugt ein InputDialog und fordert zur Eingabe des Hostnames auf.
 	 * 
+	 */
+	private void connectToServer() {
+		String serverAddress = null;
+		boolean isConnected = false;
+		
+		while(!isConnected) {
+			try {
+				serverAddress = getServerAddress();
+				socket = new Socket(serverAddress, PORT);	// Verbindungsaufbau zum Server
+				isConnected = true;
+			} catch(NoRouteToHostException e) {
+				System.err.println(e.toString());
+				isConnected = false;
+			} catch(UnknownHostException e2) {
+				System.err.println(e2.toString());
+				isConnected = false;
+			} catch(ConnectException e3) {
+				System.err.println(e3.toString());
+				isConnected = false;
+			} catch(IOException e4) {
+				System.err.println(e4.toString());
+				isConnected = false;
+			}
+		}
+		
+		// Initialisiere In- und Out-Stream
+		try {
+			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+			out = new PrintWriter(socket.getOutputStream(), true);
+		} catch(IOException e) {
+			System.err.println(e.toString());
+		}
+		
+		login();
+	}
+	
+	/**
+	 * 
+	 */
+	private void login() {
+		try {
+			boolean loggedIn = false;
+			
+			while(!loggedIn) {
+				String input = in.readLine();
+				
+				if(input.equals("/NME")) {
+					user = getName();
+					out.println("/USR" + user);
+				} else if(input.equals("/NOK")) {
+					loggedIn = true;
+					frame.setTitle(frame.getTitle() + " as " + user);	// passt Titel vom Client Fenster an
+					textField.setEditable(true);		// "aktiviert" das Eingabefeld
+					textField.requestFocusInWindow();		// setzt den Fokus auf das Eingabefeld
+				}
+			}
+		
+			clientThreadIncoming = new ClientThreadIncoming(in, this);
+			clientThreadIncoming.start();
+		} catch(IOException e) {
+			System.err.println("failed to login!");
+		}
+	}
+	
+	/**
+	 * 
+	 */
+	protected void logout() {
+		JOptionPane.showMessageDialog(frame, "You left the conversation.", "Good bye", JOptionPane.OK_OPTION);
+		frame.dispose();
+		
+		clientThreadIncoming.interrupt();
+		
+		try {
+			out.close();
+			in.close();
+			socket.close();
+		} catch(IOException e) {
+			System.err.println("failed to logout!");
+		}
+	}
+	
+	/**
+	 * Erzeugt ein InputDialog und fordert zur Eingabe des Hostnames auf.
 	 * @return Hostname des zu verbindenen Servers
 	 */
 	private String getServerAddress() {
@@ -106,99 +211,25 @@ public class ChatClient {
 	
 	/**
 	 * Erzeugt ein InputDialog und fordert zur Eingabe des Nicknames auf.
-	 * 
 	 * @return Nickname des Benutzers
 	 */
 	private String getName() {
 		do {
-			nickname = JOptionPane.showInputDialog(frame, "Nickname angeben:", "Nickname", JOptionPane.PLAIN_MESSAGE);
-		} while(nickname.isEmpty());	// wiederholt bis Nickname gefuellt ist
-		return nickname;
+			user = JOptionPane.showInputDialog(frame, "Nickname angeben:", "Nickname", JOptionPane.PLAIN_MESSAGE);
+		} while(user.isEmpty());	// wiederholt bis Nickname gefuellt ist
+		return user;
 	}
 	
 	/**
 	 * Verbindet sich mit dem Chat-Server und tritt der Prozess-Schleife bei.
 	 */
-	private void startClient() throws IOException {
+	public void startClient() throws IOException {
 		
-		/**
-		 * Erzeugt den TCP-Socket und verbindet sich.
-		 * Wenn Hostname ungueltig/ nicht erreichbar, dann wiederhole Eingabe.
-		 */
-		String serverAddress = null;
-		Socket socket = null;
-		boolean isConnected = false;
-		do {
-			try {
-				serverAddress = getServerAddress();
-				socket = new Socket(serverAddress, PORT);	// Verbindungsaufbau zum Server
-				isConnected = true;
-			} catch(NoRouteToHostException e) {
-				System.err.println(e);
-				isConnected = false;
-			} catch(UnknownHostException e2) {
-				System.err.println(e2);
-				isConnected = false;
-			} catch(ConnectException e3) {
-				System.err.println(e3);
-				isConnected = false;
-			}
-		} while(!isConnected);
-
-		// Initialisiere In- und Out-Stream
-		in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-		out = new PrintWriter(socket.getOutputStream(), true);
-		
-		// Client beenden?
-		boolean serviceRequested = true;
-		
-		/**
-		 * Durchlaeuft das Protokoll bis Client beendet wird.
-		 * 
-		 * SUBMITNAME -> Aufforderung fuer Nickname
-		 * NAMEACCEPTED -> Nickname wird beim Server registriert
-		 * MESSAGE -> Es folgt eine Chat-Nachricht vom Server
-		 * QUIT -> Beendet den Client und meldet ihn ab
-		 */
-		// Anhand der Befehle "
-		while(serviceRequested) {
-			try {
-				String line = in.readLine();	// Antwort vom Server
-				
-				// Aufforderung fuer Angabe des Nicknames; serverseitig
-				if(line.startsWith("SUBMITNAME")) {
-					out.println(getName());
-					frame.setTitle(frame.getTitle() + " as " + nickname);	// passte Titel vom Client Fenster an
-					
-				// Nickname wurde vom Server akzeptiert -> Eingabefeld wird aktiviert
-				} else if(line.startsWith("NAMEACCEPTED")) {
-					textField.setEditable(true);
-					textField.requestFocusInWindow();
-				
-				// Server schickt Chat-Nachricht an Client zum Anzeigen im Ausgabebereich 
-				} else if(line.startsWith("MESSAGE")) {
-					messageArea.append(line.substring(8) + "\n");
-					scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
-					
-				// Server schickt Bestaetigung; Client erfolgreich abgemeldet
-				} else if(line.startsWith("QUIT")) {
-					serviceRequested = false;
-					JOptionPane.showMessageDialog(frame, "You left the conversation.", "Good bye", JOptionPane.OK_OPTION);
-					frame.dispose();
-				}
-				
-			// Fehlermeldung, wenn der Chat-Server nicht mehr erreichbar ist
-			} catch(NullPointerException e) {
-				serviceRequested = false;
-				JOptionPane.showMessageDialog(frame, "Der Chat-Server ist nicht mehr erreichbar.", "Achtung", JOptionPane.OK_OPTION);
-				frame.dispose();
-			}
-		}
-		socket.close(); // Verbindungsabbau
+		connectToServer();
 	}
 	
 	/**
-	 * Startet einen Client 
+	 * Startet einen Client
 	 */
 	public static void main(String[] args) throws Exception {
 		ChatClient client = new ChatClient();
