@@ -12,15 +12,16 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.Semaphore;
+
 import javax.swing.JFrame;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
 /**
- * ChatServer.java 
- * Version: 2.0 
- * Autor: Marc Kaepke & Anna Steinhauer 
- * Zweck: Ein multi-thread/client Chat Raum Server (TCP Server-Socket).
+ * @author Marc Kaepke & Anna Steinhauer
+ * @version 2.0 
+ * Ein Multi-Thread/Client Chat Raum Server (TCP Server-Socket).
  */
 public class ChatServer {
 	
@@ -34,11 +35,13 @@ public class ChatServer {
 	private JTextArea logTextArea;	// Anzeigebereich des Logs
 	private JScrollPane scrollPane = new JScrollPane(logTextArea);
 	
+	private Semaphore semaphore;
+	
 	/**
 	 * Konstruktor 
 	 * Erzeugt die GUI
 	 */
-	public ChatServer() {
+	public ChatServer(int maxThreads) {
 		
 		// Layout GUI
 		logFrame = new JFrame("Chat Server - Log");
@@ -50,6 +53,7 @@ public class ChatServer {
 		logFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		logFrame.setVisible(true);
 		
+		semaphore = new Semaphore(maxThreads);
 	}
 	
 	/**
@@ -74,8 +78,14 @@ public class ChatServer {
 			Socket connectionSocket;	// TCP-Standard-Socket
 			try {
 				while(true) {
-					connectionSocket = listener.accept();	// "Hand-Shake"
-					new Handler(connectionSocket).start();	// Handler-Thread mit Socket
+				    try {
+                        semaphore.acquire();
+                        connectionSocket = listener.accept();   // "Hand-Shake"
+                        new Handler(connectionSocket).start();  // Handler-Thread mit Socket
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+					
 				}
 			} finally {
 				listener.close();	// Verbindungsabbau
@@ -93,7 +103,7 @@ public class ChatServer {
 		System.out.print("Chat Server wurde gestartet");
 		
 		// Erzeugt Server Instanz und startet diesen
-		new ChatServer().startServer();
+		new ChatServer(10).startServer();
 	}
 	
 	/**
@@ -129,17 +139,17 @@ public class ChatServer {
 				 * sein.
 				 */
 				while(true) {
-					out.println("/NME");
+					out.println("/NAME");
 					
 					name = in.readLine();
 					if(name == null) {
 						return;
 					}
-					if(!name.startsWith("/USR")) {
+					if(!name.startsWith("/USER")) {
 						return;
 					}
 					name = extractMessage(name);
-					writeServerLog(PLACEHOLDER, name + " /NME");
+					writeServerLog(name, " /NAME");
 					
 					synchronized(users) {
 						if(!users.contains(name)) {
@@ -150,15 +160,15 @@ public class ChatServer {
 				}
 				
 				// Der neue Benutzer wird "akzeptiert" -> Server schickt Bestaetigung an Client
-				out.println("/NOK");
-				writeServerLog(PLACEHOLDER, name + " /NOK");
+				out.println("/ACPT");
+                writeServerLog(name, " /ACPT");
+
 				
 				// Informiert die Chat-Mitgliedern, dass ein neuer Benutzer beigetreten ist
 				for(PrintWriter writer : writers) {
-					writer.println("/MSG" + PLACEHOLDER + name + " joined");
-					writer.println("/USR" + name);
+					writer.println("/MSGE" + PLACEHOLDER + name + " joined");
 				}
-				writeServerLog(PLACEHOLDER, name + " joined");
+				writeServerLog(name, " joined");
 				
 				synchronized(writers) {
 					writers.add(out); // Fuegt den neuen WriterStream der Liste aller Mitglieder-Streams bei	
@@ -176,32 +186,36 @@ public class ChatServer {
 					if(input == null) {
 						return;
 						// Wenn der Client den Chat verlassen will
-					} else if(input.equals("/QIT" + name)) {
-						out.println("/QIT");
-						writeServerLog(PLACEHOLDER, name + " disconnected");
+					} else if(input.equals("/QUIT" + name)) {
+						out.println("/QUIT");
+						writeServerLog(name, " disconnected");
 						synchronized(writers) {
 							for(PrintWriter writer : writers) {
-								writer.println("/MSG" + name + " (" + sdf.format(cal.getTime()) + ") disconnected");
-								writer.println("/USR" + name);
+								writer.println("/MSGE" + name + " (" + sdf.format(cal.getTime()) + ") disconnected");
 							}	
 						}
-					} else if(input.equals("/USR")) {
+					} else if(input.equals("/USRS")) {
 						synchronized(users) {
-							String res = "";
-							for(String user : users) {
-								res += (user + "\n");
-							}
-							out.println("/USR" + res);
+						    writeServerLog(name, input);
+						    if(writers.size() == 1) {
+                                out.println("/MSGEyou are alone :(");
+                            } else {
+                                out.println("/MSGE" + PLACEHOLDER + "list of users:");
+                                for(String user : users) {
+                                    if(!user.equals(name)) {
+                                        out.println("/MSGE" + PLACEHOLDER + user);
+                                    }
+                                }
+                            }
 						}
 					}
 					// Wenn eine Nachricht an alle gehen soll
 					else {
 						synchronized(writers) {
 							input = extractMessage(input);
-							writeServerLog(name, input);
+							writeServerLog(name, "\"" + input + "\"");
 							for(PrintWriter writer : writers) {
-								writer.println("/MSG" + name + " (" + sdf.format(cal.getTime()) + ") : " + input);
-							}
+								writer.println("/MSGE" + "(" + sdf.format(cal.getTime()) + ") " + name + ": " + input);							}
 						}
 					}
 				}
@@ -219,6 +233,7 @@ public class ChatServer {
 					socket.close();	// Verbindungsabbau
 				} catch(IOException e) {
 				}
+				semaphore.release();
 			}
 		}
 		
@@ -228,20 +243,20 @@ public class ChatServer {
 		 * @return
 		 */
 		private String extractMessage(String message) {
-			return message.substring(4);
+			return message.substring(5);
 		}
 		
 		/**
 		 * Schreibt die Nachricht in eine Session-ArrayList und zeigt sie anschliessend im Server-Log-Fenster an.
-		 * <beforeDate> (hh:mm) : <afterDate>
-		 * @param beforeDate, String wird vor der Uhrzeit eingefuegt
-		 * @param afterDate, String wird nach der Uhrzeit eingefuegt
+		 * (hh:mm) <name> : <message>
+		 * @param name, des Users
+		 * @param message, die eigentliche Nachricht
 		 */
-		private void writeServerLog(String beforeDate, String afterDate) {
+		private void writeServerLog(String name, String message) {
 			Calendar cal = Calendar.getInstance();
 			SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
 			
-			session.add(beforeDate + " (" + sdf.format(cal.getTime()) + ") : " + afterDate);
+			session.add("(" + sdf.format(cal.getTime()) + ") " + name + ": " + message);
 			logTextArea.append(session.get(session.size() - 1) + "\n");
 			scrollPane.getVerticalScrollBar().setValue(scrollPane.getVerticalScrollBar().getMaximum());
 		}

@@ -2,6 +2,7 @@ package client;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+
 import javax.swing.JOptionPane;
 
 public class ClientThreadIncoming extends Thread {
@@ -29,11 +30,9 @@ public class ClientThreadIncoming extends Thread {
 				input = in.readLine();
 				incomingMsg(input);
 			} catch(IOException e) {
-				e.printStackTrace();
-			} catch(NullPointerException e2) {
-				JOptionPane.showMessageDialog(client.frame, "Der Chat-Server ist nicht mehr erreichbar.", "Achtung", JOptionPane.OK_OPTION);
-				client.frame.dispose();
-			}
+			    JOptionPane.showMessageDialog(client.frame, "Der Chat-Server ist nicht mehr erreichbar.", "Achtung", JOptionPane.OK_OPTION);
+                client.frame.dispose();
+			} 
 		}
 	}
 	
@@ -41,14 +40,11 @@ public class ClientThreadIncoming extends Thread {
 	 * @param message
 	 */
 	private synchronized void incomingMsg(String message) {
-		if(message.startsWith("/USR")) {
-			message = extractMessage(message);
-			client.messageArea.append("all users: " + message + "\n");
-		} else if(message.startsWith("/MSG")) {
+		if(message.startsWith("/MSGE")) {
 			message = extractMessage(message);
 			client.messageArea.append(message + "\n");
 			client.scrollPane.getVerticalScrollBar().setValue(client.scrollPane.getVerticalScrollBar().getMaximum());
-		} else if(message.equals("/QIT")) {
+		} else if(message.equals("/QUIT")) {
 			client.logout();
 		}
 	}
@@ -59,6 +55,6 @@ public class ClientThreadIncoming extends Thread {
 	 * @return
 	 */
 	private String extractMessage(String message) {
-		return message.substring(4);
+		return message.substring(5);
 	}
 }

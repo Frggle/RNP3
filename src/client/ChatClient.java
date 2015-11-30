@@ -22,7 +22,9 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
 /**
- * ChatClient.java Version 2.0 Autor: Marc Kaepke & Anna Steinhauer Zweck: Ein TCP-Client verbindet sich, mit anderen
+ * @author Marc Kaepke & Anna Steinhauer
+ * @version 2.0
+ * Ein TCP-Client verbindet sich, mit anderen
  * Clients, mit einem Chat-Server. Der Client folgt dabei dem Chat-Protokoll (SUBMITNAME, NAMEACCEPTED, MESSAGE und
  * QUIT). Der Client verfuegt ueber eine grafische Swing-Oberflaeche und zeigt den Chat-Verlauf an.
  */
@@ -73,15 +75,15 @@ public class ChatClient {
 			 */
 			@Override
 			public void windowClosing(WindowEvent e) {
-				out.println("/QIT" + user);
-				logout();
+				out.println("/QUIT" + user);
+//				logout();
 				System.exit(0);
 			}
 			
 			@Override
 			public void windowClosed(WindowEvent e) {
-				out.println("/QIT" + user);
-				logout();
+				out.println("/QUIT" + user);
+//				logout();
 				System.exit(0);
 			}
 		});
@@ -98,13 +100,13 @@ public class ChatClient {
 					public void run() {
 						String message = textField.getText();
 						if(message.toUpperCase().equals("USERS")) {
-							out.println("/USR");
+							out.println("/USRS");
 							textField.setText("");
 						} else if(message.toUpperCase().equals("QUIT")) {
-							out.println("/QIT" + user);
+							out.println("/QUIT" + user);
 							textField.setText("");
 						} else {
-							out.println("/MSG" + message);
+							out.println("/MSGE" + message);
 							textField.setText("");
 						}
 					}
@@ -162,10 +164,10 @@ public class ChatClient {
 			while(!loggedIn) {
 				String input = in.readLine();
 				
-				if(input.equals("/NME")) {
+				if(input.equals("/NAME")) {
 					user = getName();
-					out.println("/USR" + user);
-				} else if(input.equals("/NOK")) {
+					out.println("/USER" + user);
+				} else if(input.equals("/ACPT")) {
 					loggedIn = true;
 					frame.setTitle(frame.getTitle() + " as " + user);	// passt Titel vom Client Fenster an
 					textField.setEditable(true);		// "aktiviert" das Eingabefeld
@@ -184,6 +186,8 @@ public class ChatClient {
 	 * 
 	 */
 	protected void logout() {
+	    
+	    // TODO: Nachricht kommt 2 mal
 		JOptionPane.showMessageDialog(frame, "You left the conversation.", "Good bye", JOptionPane.OK_OPTION);
 		frame.dispose();
 		
