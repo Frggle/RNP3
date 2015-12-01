@@ -230,7 +230,7 @@ public class ChatServer {
                             input = extractMessage(input);
                             writeServerLog(name, "\"" + input + "\"");
                             for (PrintWriter writer : writers) {
-                                writer.println("/MSGE" + "(" + sdf.format(cal.getTime()) + ") " + name + ": " + input);
+                                writer.println("/MSGE" + "(" + sdf.format(cal.getTime()) + ") " + name + ": " + "\"" + input + "\"");
                             }
                         }
                     }

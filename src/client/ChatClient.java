@@ -13,8 +13,6 @@ import java.net.ConnectException;
 import java.net.NoRouteToHostException;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.List;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
@@ -46,13 +44,10 @@ public class ChatClient {
 	ClientThreadIncoming clientThreadIncoming = null;
 	Socket socket = null;
 	
-	List<String> userList;
-	
 	/**
 	 * Konstruktor
 	 */
 	public ChatClient() {
-		userList = new ArrayList<String>();
 		builtGUI();
 	}
 	
@@ -76,14 +71,12 @@ public class ChatClient {
 			@Override
 			public void windowClosing(WindowEvent e) {
 				out.println("/QUIT" + user);
-//				logout();
 				System.exit(0);
 			}
 			
 			@Override
 			public void windowClosed(WindowEvent e) {
 				out.println("/QUIT" + user);
-//				logout();
 				System.exit(0);
 			}
 		});
@@ -95,7 +88,8 @@ public class ChatClient {
 			 * die Eingabezeile entleert/ geloescht
 			 */
 			public void actionPerformed(ActionEvent e) {
-				Runnable run = new Runnable() {
+				Thread t = new Thread(new Runnable() {
+					
 					@Override
 					public void run() {
 						String message = textField.getText();
@@ -108,10 +102,10 @@ public class ChatClient {
 						} else {
 							out.println("/MSGE" + message);
 							textField.setText("");
-						}
+						}						
 					}
-				};
-				run.run();
+				});
+				t.start();
 			}
 		});
 	}
@@ -186,8 +180,6 @@ public class ChatClient {
 	 * 
 	 */
 	protected void logout() {
-	    
-	    // TODO: Nachricht kommt 2 mal
 		JOptionPane.showMessageDialog(frame, "You left the conversation.", "Good bye", JOptionPane.OK_OPTION);
 		frame.dispose();
 		
