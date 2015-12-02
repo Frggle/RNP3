@@ -5,14 +5,19 @@ import java.io.IOException;
 
 import javax.swing.JOptionPane;
 
+/**
+ * @author Marc Kaepke & Anna Steinhauer
+ * @version 2.0
+ */
 public class ClientThreadIncoming extends Thread {
 	
 	private BufferedReader in;
 	private ChatClient client;
 	
 	/**
-	 * @param in
-	 * @param client
+	 * Konstruktor
+	 * @param in, BufferedReader des Client
+	 * @param client, für den der Thread der ingehenden Nachrichten gestartet wird
 	 */
 	public ClientThreadIncoming(BufferedReader in, ChatClient client) {
 		this.in = in;
@@ -20,7 +25,7 @@ public class ClientThreadIncoming extends Thread {
 	}
 	
 	/**
-	 * 
+	 * Startet einen Thread, des die eingehenden Nachrichten verarbeitet.
 	 */
 	public void run() {
 		
@@ -37,7 +42,8 @@ public class ClientThreadIncoming extends Thread {
 	}
 	
 	/**
-	 * @param message
+	 * Verarbeitet eingehende Nachrichten
+	 * @param message, eingehende Nachricht
 	 */
 	private synchronized void incomingMsg(String message) {
 		if(message.startsWith("/MSGE")) {
@@ -50,9 +56,9 @@ public class ClientThreadIncoming extends Thread {
 	}
 	
 	/**
-	 * 
-	 * @param message
-	 * @return
+	 * Methode welche die Protokollbefehle von den Nachrichten trennt
+	 * @param message, welche vom Server eingeht
+	 * @return nur die Nachricht ohne Protokollbefehle
 	 */
 	private String extractMessage(String message) {
 		return message.substring(5);

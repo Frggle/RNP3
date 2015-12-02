@@ -23,7 +23,7 @@ import javax.swing.JTextField;
  * @author Marc Kaepke & Anna Steinhauer
  * @version 2.0
  * Ein TCP-Client verbindet sich, mit anderen
- * Clients, mit einem Chat-Server. Der Client folgt dabei dem Chat-Protokoll (SUBMITNAME, NAMEACCEPTED, MESSAGE und
+ * Clients, mit einem Chat-Server. Der Client folgt dabei dem Chat-Protokoll (NAME, ACPT, MSGE und
  * QUIT). Der Client verfuegt ueber eine grafische Swing-Oberflaeche und zeigt den Chat-Verlauf an.
  */
 public class ChatClient {
@@ -64,7 +64,7 @@ public class ChatClient {
 		
 		// Listener auf das Beenden/ Schliessen des Fensters
 		frame.addWindowListener(new WindowAdapter() {
-			/**
+			/*
 			 * Sobald das Fenster geschlossen wird, ohne dass der Benutzer sich abgemeldet hat, wird der Chat-Server
 			 * ueber den Befehl "/quit" informiert, dass der Benutzer den Chat verlassen hat.
 			 */
@@ -83,7 +83,7 @@ public class ChatClient {
 		
 		// Listener auf der Eingabezeile
 		textField.addActionListener(new ActionListener() {
-			/**
+			/*
 			 * Sobald die ENTER-Taste gedrueckt wurde, wird der Inhalt an den Chat-Server geschickt. Anschließend wird
 			 * die Eingabezeile entleert/ geloescht
 			 */
@@ -111,7 +111,7 @@ public class ChatClient {
 	}
 	
 	/**
-	 * 
+	 * Erstellt die Verbindung zum Server
 	 */
 	private void connectToServer() {
 		String serverAddress = null;
@@ -149,7 +149,8 @@ public class ChatClient {
 	}
 	
 	/**
-	 * 
+	 * Log in des Users auf dem Server, bei vergebenem Usernamen wird solange nach Usernamen gefragt,
+	 * bis ein nicht vergebener Username eingegeben wird.
 	 */
 	private void login() {
 		try {
@@ -177,7 +178,7 @@ public class ChatClient {
 	}
 	
 	/**
-	 * 
+	 * Log out vom Server. Es wird ein Info-Fenster angezeigt, dass man den Chat verlassen hat.
 	 */
 	protected void logout() {
 		JOptionPane.showMessageDialog(frame, "You left the conversation.", "Good bye", JOptionPane.OK_OPTION);
