@@ -34,7 +34,7 @@ public class ClientThreadIncoming extends Thread {
 			try {
 				input = in.readLine();
 				incomingMsg(input);
-			} catch(IOException e) {
+			} catch(IOException | NullPointerException e) {
 			    JOptionPane.showMessageDialog(client.frame, "Der Chat-Server ist nicht mehr erreichbar.", "Achtung", JOptionPane.OK_OPTION);
                 client.frame.dispose();
 			} 
